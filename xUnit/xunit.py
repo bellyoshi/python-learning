@@ -1,13 +1,6 @@
-class WasRun:
-    def __init__(self, name):
-        self.wasRun = None
-        self.name = name
-    def run(self):
-        method = getattr(self, self.name)
-        method()
-    def testMethod(self):
-        self.wasRun = 1
-    
+from wasrun import WasRun
+from testcase import TestCase
+
 test = WasRun("testMethod")
 print(test.wasRun)
 test.run()
