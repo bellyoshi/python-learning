@@ -25,45 +25,66 @@ class SalaryPayslipGenerator:
         給与明細PDF生成器の初期化
         """
         self.excel_file_path = excel_file_path
-        self.workbook = None
+        self.workbook_values = None
+        self.workbook_formulas = None
         self.load_excel_data()
         
     def load_excel_data(self):
         """
-        エクセルファイルから給与データを読み込む（数式の計算結果を取得）
+        エクセルファイルから給与データを読み込む（数式と計算結果の両方を取得）
         """
         try:
-            # data_only=Trueで数式の計算結果を取得
-            self.workbook = openpyxl.load_workbook(self.excel_file_path, data_only=True)
-            print(f"エクセルファイル '{self.excel_file_path}' を読み込みました（数式の計算結果を取得）。")
+            # 計算結果を取得
+            self.workbook_values = openpyxl.load_workbook(self.excel_file_path, data_only=True)
+            # 数式を取得
+            self.workbook_formulas = openpyxl.load_workbook(self.excel_file_path, data_only=False)
+            print(f"エクセルファイル '{self.excel_file_path}' を読み込みました（数式と計算結果を取得）。")
         except Exception as e:
             print(f"エクセルファイルの読み込みエラー: {e}")
             raise
+    
+    def get_cell_value_with_formula(self, sheet_values, sheet_formulas, row, col):
+        """
+        セルの値を取得（数式の場合は数式を表示）
+        """
+        value = sheet_values.cell(row=row, column=col).value
+        formula = sheet_formulas.cell(row=row, column=col).value
+        
+        # 値がNoneで数式がある場合は数式を返す
+        if value is None and formula and str(formula).startswith('='):
+            return f"[数式: {formula}]"
+        elif value is None:
+            return ""
+        else:
+            return value
     
     def get_salary_data(self, employee_name, target_month):
         """
         指定された従業員と月の給与データを取得
         """
-        salary_sheet = self.workbook['給与データ']
+        salary_sheet_values = self.workbook_values.active  # アクティブシートを使用
+        salary_sheet_formulas = self.workbook_formulas.active  # アクティブシートを使用
         
         # ヘッダー行を取得
         headers = []
-        for col in range(1, salary_sheet.max_column + 1):
-            cell_value = salary_sheet.cell(row=1, column=col).value
+        for col in range(1, salary_sheet_values.max_column + 1):
+            cell_value = salary_sheet_values.cell(row=1, column=col).value
             headers.append(str(cell_value) if cell_value else "")
         
         # 指定された従業員と月のデータを検索
         employee_data = None
-        for row in range(2, salary_sheet.max_row + 1):
-            name_cell = salary_sheet.cell(row=row, column=3).value  # 氏名列（3列目）
-            date_cell = salary_sheet.cell(row=row, column=1).value  # 支給日列（1列目）
+        for row in range(2, salary_sheet_values.max_row + 1):
+            name_cell = salary_sheet_values.cell(row=row, column=3).value  # 氏名列（3列目）
+            date_cell = salary_sheet_values.cell(row=row, column=1).value  # 支給日列（1列目）
             
             if name_cell == employee_name and date_cell:
                 # 日付が指定された月と一致するかチェック
                 if hasattr(date_cell, 'month') and date_cell.month == target_month:
                     employee_data = {}
-                    for col in range(1, salary_sheet.max_column + 1):
-                        cell_value = salary_sheet.cell(row=row, column=col).value
+                    for col in range(1, salary_sheet_values.max_column + 1):
+                        cell_value = self.get_cell_value_with_formula(
+                            salary_sheet_values, salary_sheet_formulas, row, col
+                        )
                         header = headers[col-1] if col-1 < len(headers) else f"列{col}"
                         employee_data[header] = cell_value
                     break
@@ -74,15 +95,15 @@ class SalaryPayslipGenerator:
         """
         従業員の基本情報を取得
         """
-        personal_sheet = self.workbook['個人データ']
+        personal_sheet = self.workbook_values.active  # アクティブシートを使用
         
         employee_info = {}
         for row in range(2, personal_sheet.max_row + 1):
-            name_cell = personal_sheet.cell(row=row, column=2).value
+            name_cell = personal_sheet.cell(row=row, column=3).value  # 氏名列（3列目）
             if name_cell == employee_name:
-                employee_info['社員番号'] = personal_sheet.cell(row=row, column=1).value
+                employee_info['社員番号'] = personal_sheet.cell(row=row, column=2).value  # 社員番号（2列目）
                 employee_info['氏名'] = name_cell
-                employee_info['生年月日'] = personal_sheet.cell(row=row, column=3).value
+                employee_info['生年月日'] = personal_sheet.cell(row=row, column=1).value  # 支給日（1列目）
                 break
         
         return employee_info
@@ -91,11 +112,11 @@ class SalaryPayslipGenerator:
         """
         利用可能な従業員のリストを取得
         """
-        personal_sheet = self.workbook['個人データ']
+        personal_sheet = self.workbook_values.active  # アクティブシートを使用
         employees = []
         
         for row in range(2, personal_sheet.max_row + 1):
-            name_cell = personal_sheet.cell(row=row, column=2).value
+            name_cell = personal_sheet.cell(row=row, column=3).value  # 氏名列（3列目）
             if name_cell and name_cell.strip():  # 空でない名前のみ
                 employees.append(name_cell)
         
@@ -105,7 +126,7 @@ class SalaryPayslipGenerator:
         """
         指定された従業員の給与データがある月を取得
         """
-        salary_sheet = self.workbook['給与データ']
+        salary_sheet = self.workbook_values.active  # アクティブシートを使用
         months = set()
         
         for row in range(2, salary_sheet.max_row + 1):
@@ -123,6 +144,8 @@ class SalaryPayslipGenerator:
         """
         if value is None:
             return ""
+        elif isinstance(value, str) and value.startswith('[数式:'):
+            return value  # 数式の場合はそのまま表示
         elif isinstance(value, (int, float)):
             return f"{value:,}"
         else:
@@ -200,32 +223,28 @@ class SalaryPayslipGenerator:
         story.append(basic_table)
         story.append(Spacer(1, 20))
         
-        # 給与詳細テーブル
+        # 給与詳細テーブル（縦書き、2列表示）
         salary_details_data = [
-            ['項目', '金額', '項目', '金額']
+            ['項目', '金額']
         ]
         
-        # 主要な給与項目を抽出（列名の変更に対応）
+        # 主要な給与項目を抽出（実際のExcelファイルの列名に合わせる）
         key_items = [
-            ('総支給額', '社会保険料控除後'),
-            ('標準報酬月額', '源泉所得税'),
-            ('健康保険', '差引支給額'),
-            ('厚生年金', '振込金額'),
+            '総支給額',
+            '標準報酬\n月額', 
+            '健康保険',
+            '厚生年金',
+            '社会保険料\n控除後',
+            '源泉所得税',
+            '差引支給額',
+            '振込金額',
         ]
         
-        for i in range(0, len(key_items), 2):
-            row = []
-            for j in range(2):
-                if i + j < len(key_items):
-                    item = key_items[i + j]
-                    value1 = salary_data.get(item[0], '')
-                    value2 = salary_data.get(item[1], '')
-                    row.extend([item[0], self.format_currency_value(value1), item[1], self.format_currency_value(value2)])
-                else:
-                    row.extend(['', '', '', ''])
-            salary_details_data.append(row)
+        for item in key_items:
+            value = salary_data.get(item, '')
+            salary_details_data.append([item, self.format_currency_value(value)])
         
-        salary_table = Table(salary_details_data, colWidths=[50*mm, 30*mm, 50*mm, 30*mm])
+        salary_table = Table(salary_details_data, colWidths=[80*mm, 60*mm])
         salary_table.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (-1, -1), FONT_NAME),
             ('FONTSIZE', (0, 0), (-1, -1), 9),
@@ -238,24 +257,23 @@ class SalaryPayslipGenerator:
         story.append(salary_table)
         story.append(Spacer(1, 20))
         
-        # 控除内訳テーブル
+        # 控除内訳テーブル（縦書き、2列表示）
         deduction_data = [
-            ['控除項目', '金額', '控除項目', '金額']
+            ['控除項目', '金額']
         ]
         
         deduction_items = [
-            ('健康保険料（従業員）', '厚生年金（従業員）'),
-            ('社会保険料控除額', '扶養親族等の数'),
+            '健康保険料（従業員）',
+            '厚生年金（従業員）',
+            '社会保険料\n控除額',
+            '扶養親族\n等の数',
         ]
         
-        for item_pair in deduction_items:
-            row = []
-            for item in item_pair:
-                value = salary_data.get(item, '')
-                row.extend([item, self.format_currency_value(value)])
-            deduction_data.append(row)
+        for item in deduction_items:
+            value = salary_data.get(item, '')
+            deduction_data.append([item, self.format_currency_value(value)])
         
-        deduction_table = Table(deduction_data, colWidths=[70*mm, 30*mm, 70*mm, 30*mm])
+        deduction_table = Table(deduction_data, colWidths=[80*mm, 60*mm])
         deduction_table.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (-1, -1), FONT_NAME),
             ('FONTSIZE', (0, 0), (-1, -1), 9),
@@ -279,17 +297,23 @@ class SalaryPayslipGenerator:
         note = Paragraph("※ この明細書は給与計算システムにより自動生成されています。", note_style)
         story.append(note)
         
-        # PDFを生成
-        doc.build(story)
-        print(f"給与明細PDFを '{output_path}' に作成しました。")
-        return True
+        # PDFを生成（既存ファイルは上書き）
+        try:
+            doc.build(story)
+            print(f"給与明細PDFを '{output_path}' に作成しました。")
+            return True
+        except Exception as e:
+            print(f"PDF作成エラー: {e}")
+            return False
     
     def close(self):
         """
         ワークブックを閉じる
         """
-        if self.workbook:
-            self.workbook.close()
+        if self.workbook_values:
+            self.workbook_values.close()
+        if self.workbook_formulas:
+            self.workbook_formulas.close()
 
 def main():
     """

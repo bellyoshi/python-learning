@@ -61,6 +61,14 @@ def create_all_payslips(excel_file, output_dir="給与明細PDF"):
                 output_filename = f"給与明細_{safe_employee_name}_{month}月.pdf"
                 output_path = os.path.join(output_dir, output_filename)
                 
+                # 既存ファイルがある場合は削除（上書きのため）
+                if os.path.exists(output_path):
+                    try:
+                        os.remove(output_path)
+                        print(f"  既存ファイルを削除: {output_filename}")
+                    except Exception as e:
+                        print(f"  既存ファイル削除エラー: {e}")
+                
                 print(f"  {month}月の給与明細を作成中...")
                 
                 success = generator.create_payslip_pdf(employee, month, output_path)
@@ -129,6 +137,14 @@ def create_specific_payslips(excel_file, employee_names=None, months=None, outpu
                 safe_employee_name = employee.replace('/', '_').replace('\\', '_')
                 output_filename = f"給与明細_{safe_employee_name}_{month}月.pdf"
                 output_path = os.path.join(output_dir, output_filename)
+                
+                # 既存ファイルがある場合は削除（上書きのため）
+                if os.path.exists(output_path):
+                    try:
+                        os.remove(output_path)
+                        print(f"  既存ファイルを削除: {output_filename}")
+                    except Exception as e:
+                        print(f"  既存ファイル削除エラー: {e}")
                 
                 print(f"  {month}月の給与明細を作成中...")
                 
