@@ -2,25 +2,32 @@ import openpyxl
 import os
 from datetime import datetime
 from salary_pdf_generator import SalaryPayslipGenerator
+from personal_salary_data import PersonalSalaryData, PersonalSalaryDataManager
 
 def get_available_employees_and_months(excel_file):
     """
     利用可能な従業員と月の組み合わせを取得
     """
-    generator = SalaryPayslipGenerator(excel_file)
-    
-    # 個人データから従業員リストを取得
-    employees = generator.get_available_employees()
-    
-    # 各従業員の給与データがある月を取得
-    employee_months = {}
-    for employee in employees:
-        months = generator.get_employee_salary_months(employee)
-        if months:  # 給与データがある従業員のみ
-            employee_months[employee] = months
-    
-    generator.close()
-    return employee_months
+    try:
+        # PersonalSalaryDataManagerを使用してデータを読み込み
+        manager = PersonalSalaryDataManager()
+        manager.load_from_excel_file(excel_file)
+        
+        # 利用可能な従業員を取得
+        employees = manager.get_available_employees()
+        
+        # 各従業員の給与データがある月を取得
+        employee_months = {}
+        for employee in employees:
+            months = manager.get_available_months()
+            if months:  # 給与データがある従業員のみ
+                employee_months[employee] = months
+        
+        return employee_months
+        
+    except Exception as e:
+        print(f"データ読み込みエラー: {e}")
+        return {}
 
 def create_all_payslips(excel_file, output_dir="給与明細PDF"):
     """
@@ -167,6 +174,57 @@ def create_specific_payslips(excel_file, employee_names=None, months=None, outpu
     finally:
         generator.close()
 
+def test_excel_file_loading():
+    """
+    エクセルファイルの読み込みテスト
+    """
+    excel_file = "給与支給一覧令和7年.xlsx"
+    
+    if not os.path.exists(excel_file):
+        print(f"エラー: ファイル '{excel_file}' が見つかりません。")
+        return False
+    
+    try:
+        print("=== エクセルファイル読み込みテスト ===")
+        
+        # PersonalSalaryDataManagerを使用してデータを読み込み
+        manager = PersonalSalaryDataManager()
+        manager.load_from_excel_file(excel_file)
+        
+        # 統計情報を取得
+        stats = manager.get_statistics()
+        print(f"統計情報:")
+        for key, value in stats.items():
+            print(f"  {key}: {value}")
+        
+        # 利用可能な従業員を取得
+        available_employees = manager.get_available_employees()
+        print(f"利用可能な従業員: {available_employees}")
+        
+        # 利用可能な月を取得
+        available_months = manager.get_available_months()
+        print(f"利用可能な月: {available_months}")
+        
+        if available_employees:
+            test_employee = available_employees[0]
+            employee_data = manager.get_personal_data_by_employee(test_employee)
+            print(f"従業員 '{test_employee}' のデータ数: {len(employee_data)}")
+            
+            if employee_data:
+                first_data = employee_data[0]
+                print(f"最初のデータ:")
+                print(f"  氏名: {first_data.氏名}")
+                print(f"  支給日: {first_data.支給日}")
+                print(f"  総支給額: {first_data.総支給額}")
+                print(f"  振込金額: {first_data.振込金額}")
+        
+        print("=== テスト完了 ===")
+        return True
+        
+    except Exception as e:
+        print(f"テストエラー: {e}")
+        return False
+
 def main():
     """
     メイン関数
@@ -177,7 +235,12 @@ def main():
         print(f"エラー: ファイル '{excel_file}' が見つかりません。")
         return
     
-    print("=== 給与明細PDF一括作成ツール ===")
+    # まずエクセルファイルの読み込みテストを実行
+    if not test_excel_file_loading():
+        print("エクセルファイルの読み込みに失敗しました。")
+        return
+    
+    print("\n=== 給与明細PDF一括作成ツール ===")
     print("選択肢:")
     print("1. 全従業員の給与明細を作成 - 全ての従業員の全月分の給与明細を一括作成")
     print("2. 特定の従業員の給与明細を作成 - 指定した従業員の全月分の給与明細を作成")
