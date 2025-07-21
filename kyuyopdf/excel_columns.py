@@ -15,7 +15,7 @@ class ExcelColumns:
     STANDARD_REWARD = 5   # 標準報酬月額
     HEALTH_INSURANCE = 6  # 健康保険
     KOUSEI_INSURANCE = 7  # 厚生年金
-    SOCIAL_INSURANCE_AFTER = 8  # 社会保険料控除後
+    SOCIAL_INSURANCE_AFTER = 11  # 社会保険料控除後
     INCOME_TAX = 13        # 源泉所得税
     TRANSFER_AMOUNT = 21  # 振込金額
     HEALTH_INSURANCE_EMPLOYEE = 8  # 健康保険料（従業員）
